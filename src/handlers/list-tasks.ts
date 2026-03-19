@@ -1,8 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { withRequestTracking, internalServerError, ok } from '@leanstacks/lambda-utils';
+import { internalServerError, ok } from '@leanstacks/lambda-utils';
 
 import { logger } from '@/utils/logger';
 import { defaultResponseHeaders } from '@/utils/constants';
+import { middyfy } from '@/libs/lambda';
 import { listTasks } from '@/services/task-service';
 
 /**
@@ -12,10 +13,7 @@ import { listTasks } from '@/services/task-service';
  * @param event - API Gateway proxy event
  * @returns API Gateway proxy result with list of tasks or error message
  */
-export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
-  withRequestTracking(event, context);
-  logger.info({ event, context }, '[ListTasksHandler] > handler');
-
+const baseHandler = async (_event: APIGatewayProxyEvent, _context: Context): Promise<APIGatewayProxyResult> => {
   try {
     // Retrieve the list of tasks
     const tasks = await listTasks();
@@ -29,3 +27,5 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     return internalServerError('Failed to retrieve tasks', defaultResponseHeaders);
   }
 };
+
+export const handler = middyfy('ListTasksHandler', baseHandler);

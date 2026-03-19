@@ -63,6 +63,7 @@
     "@aws-sdk/client-sns": "3.1008.0",
     "@aws-sdk/lib-dynamodb": "3.1008.0",
     "@leanstacks/lambda-utils": "0.8.0",
+    "@middy/core": "^7.2.1",
     "zod": "4.3.6"
   }
 }

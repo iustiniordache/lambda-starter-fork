@@ -1,9 +1,13 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { internalServerError, notFound, ok, withRequestTracking } from '@leanstacks/lambda-utils';
+import { APIGatewayProxyResult, Context } from 'aws-lambda';
+import { internalServerError, notFound, ok } from '@leanstacks/lambda-utils';
 
 import { defaultResponseHeaders } from '@/utils/constants';
 import { getTask } from '@/services/task-service';
 import { logger } from '@/utils/logger';
+import { middyfy } from '@/libs/lambda';
+import { notFoundResponse, PathParamEvent, requirePathParam } from '@/middlewares';
+
+type GetTaskEvent = PathParamEvent<'taskId'>;
 
 /**
  * Lambda handler for retrieving a task by ID
@@ -12,30 +16,19 @@ import { logger } from '@/utils/logger';
  * @param event - API Gateway proxy event
  * @returns API Gateway proxy result with task or error message
  */
-export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
-  withRequestTracking(event, context);
-  logger.info({ event, context }, '[GetTaskHandler] > handler');
-
+const baseHandler = async (event: GetTaskEvent, _context: Context): Promise<APIGatewayProxyResult> => {
   try {
-    // Parse and validate the taskId from path parameters
-    const taskId = event.pathParameters?.taskId;
-
-    if (!taskId) {
-      logger.warn('[GetTaskHandler] < handler - missing taskId path parameter');
-      return notFound('Task not found', defaultResponseHeaders);
-    }
-
     // Retrieve the task
-    const task = await getTask(taskId);
+    const task = await getTask(event.taskId);
 
     // Check if the task was found
     if (!task) {
-      logger.info({ taskId }, '[GetTaskHandler] < handler - task not found');
+      logger.info({ taskId: event.taskId }, '[GetTaskHandler] < handler - task not found');
       return notFound('Task not found', defaultResponseHeaders);
     }
 
     // Return ok response with the task
-    logger.info({ taskId }, '[GetTaskHandler] < handler - successfully retrieved task');
+    logger.info({ taskId: event.taskId }, '[GetTaskHandler] < handler - successfully retrieved task');
     return ok(task, defaultResponseHeaders);
   } catch (error) {
     // Handle unexpected errors
@@ -43,3 +36,15 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context): Pr
     return internalServerError('Failed to retrieve task', defaultResponseHeaders);
   }
 };
+
+export const handler = middyfy('GetTaskHandler', baseHandler, [
+  requirePathParam<GetTaskEvent, 'taskId'>({
+    handlerName: 'GetTaskHandler',
+    paramName: 'taskId',
+    missingLogMessage: 'missing taskId path parameter',
+    responseFactory: () => notFoundResponse('Task not found'),
+    assignToEvent: (event, value) => {
+      event.taskId = value;
+    },
+  }),
+]);
